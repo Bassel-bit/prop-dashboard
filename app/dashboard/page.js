@@ -1,7 +1,6 @@
-'use client';
+﻿"use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://backend-lyart-pi.vercel.app";
@@ -19,78 +18,132 @@ function parseNumber(v) {
 
 function parseDateToTS(v) {
   const s = String(v || "").trim();
+  if (!s) return 0;
+
+  // DD.MM.YYYY
   const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (m) {
-    const d = new Date(m[3], m[2] - 1, m[1]);
-    return d.getTime();
-  }
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
 function formatMoney(n, currency = "EUR") {
+  const value = Number(n || 0);
   try {
+    // de-CH gives nice separators (25'000 etc.)
     return new Intl.NumberFormat("de-CH", {
       style: "currency",
       currency,
       maximumFractionDigits: 0,
-    }).format(Number(n || 0));
+    }).format(value);
   } catch {
-    return `${Number(n || 0).toFixed(0)} ${currency}`;
+    return `${value.toFixed(0)} ${currency}`;
   }
 }
 
 function Badge({ status }) {
   const s = safeLower(status);
-  const map = {
-    active: ["Active", "bg-green-500/10 text-green-200 border-green-500/30", "bg-green-400"],
-    paused: ["Paused", "bg-amber-500/10 text-amber-200 border-amber-500/30", "bg-amber-400"],
-    inactive: ["Inactive", "bg-zinc-500/10 text-zinc-200 border-zinc-500/30", "bg-zinc-400"],
-  };
 
-  const [label, cls, dot] = map[s] || map.inactive;
+  const styles =
+    s === "active"
+      ? "bg-green-500/10 text-green-200 border-green-500/30"
+      : s === "paused"
+      ? "bg-amber-500/10 text-amber-200 border-amber-500/30"
+      : "bg-zinc-500/10 text-zinc-200 border-zinc-500/30";
+
+  const dot =
+    s === "active" ? "bg-green-400" : s === "paused" ? "bg-amber-400" : "bg-zinc-400";
+
+  const label =
+    s === "active" ? "Active" : s === "paused" ? "Paused" : "Inactive";
 
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border ${cls}`}>
+    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border ${styles}`}>
       <span className={`h-2 w-2 rounded-full ${dot}`} />
       {label}
     </span>
   );
 }
 
+function KpiCard({ title, value, subtitle }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm">
+      <div className="text-sm text-zinc-400">{title}</div>
+      <div className="mt-2 text-3xl font-extrabold tracking-tight">{value}</div>
+      {subtitle ? <div className="mt-2 text-sm text-zinc-400">{subtitle}</div> : null}
+    </div>
+  );
+}
+
+function Chip({ active, children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "rounded-xl px-4 py-2 text-sm font-semibold border transition",
+        active
+          ? "bg-white/10 border-white/20"
+          : "bg-white/5 border-white/10 hover:bg-white/10",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortMode, setSortMode] = useState("balance_desc");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | active | paused | inactive
+  const [sortMode, setSortMode] = useState("date_asc"); // date_asc|date_desc|balance_asc|balance_desc
 
   useEffect(() => {
-    fetch(`${API_URL}/accounts`)
-      .then((r) => r.json())
-      .then((d) => setAccounts(Array.isArray(d) ? d : d.accounts || []));
+    const run = async () => {
+      try {
+        setLoading(true);
+        setErr("");
+        const res = await fetch(`${API_URL}/accounts`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.accounts ?? [];
+        setAccounts(list);
+      } catch (e) {
+        setErr(e?.message || "Unbekannter Fehler");
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
   }, []);
 
-  const data = useMemo(() => {
-    return accounts.map((a) => ({
-      id: a.id || a.account_id,
-      name: a.name,
-      balance: parseNumber(a.starting_balance),
-      currency: a.currency,
-      status: safeLower(a.status),
-      date: a.start_date,
-      ts: parseDateToTS(a.start_date),
-    }));
+  const normalized = useMemo(() => {
+    return accounts.map((a) => {
+      const id = a.id ?? a.account_id ?? a.accountId ?? "";
+      const name = a.name ?? a.account_name ?? a.accountName ?? "Account";
+      const status = safeLower(a.status ?? a.state ?? "inactive");
+      const currency = String(a.currency ?? "EUR").toUpperCase();
+
+      // prefer starting_balance, fallback to balance
+      const balance = parseNumber(a.starting_balance ?? a.startingBalance ?? a.balance ?? 0);
+
+      // support start_date in many formats
+      const date = a.start_date ?? a.startDate ?? a.created_at ?? a.createdAt ?? "";
+      const ts = parseDateToTS(date);
+
+      return { id, name, status, currency, balance, date, ts };
+    });
   }, [accounts]);
 
   const filtered = useMemo(() => {
-    let list = data;
+    let list = normalized;
 
-    if (query) {
-      list = list.filter(
-        (a) =>
-          safeLower(a.name).includes(query) ||
-          safeLower(a.id).includes(query)
-      );
+    const q = safeLower(query).trim();
+    if (q) {
+      list = list.filter((a) => safeLower(a.name).includes(q) || safeLower(a.id).includes(q));
     }
 
     if (statusFilter !== "all") {
@@ -98,74 +151,163 @@ export default function DashboardPage() {
     }
 
     list = [...list].sort((a, b) => {
-      if (sortMode === "balance_desc") return b.balance - a.balance;
-      if (sortMode === "balance_asc") return a.balance - b.balance;
-      if (sortMode === "date_desc") return b.ts - a.ts;
       if (sortMode === "date_asc") return a.ts - b.ts;
+      if (sortMode === "date_desc") return b.ts - a.ts;
+      if (sortMode === "balance_asc") return a.balance - b.balance;
+      if (sortMode === "balance_desc") return b.balance - a.balance;
       return 0;
     });
 
     return list;
-  }, [data, query, statusFilter, sortMode]);
+  }, [normalized, query, statusFilter, sortMode]);
+
+  const kpis = useMemo(() => {
+    const total = normalized.length;
+    const active = normalized.filter((a) => a.status === "active").length;
+    const paused = normalized.filter((a) => a.status === "paused").length;
+    const inactive = normalized.filter((a) => a.status === "inactive").length;
+
+    const sum = normalized.reduce((s, a) => s + (a.balance || 0), 0);
+
+    // top currency
+    const freq = {};
+    normalized.forEach((a) => (freq[a.currency] = (freq[a.currency] || 0) + 1));
+    const topCurrency = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || "EUR";
+
+    return { total, active, paused, inactive, sum, topCurrency };
+  }, [normalized]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/";
+  };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
-      <h1 className="text-3xl font-extrabold mb-6">Swiss Prop Dashboard</h1>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Topbar */}
+      <div className="border-b border-white/10 bg-zinc-950/70 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-[#E30613]/20 border border-[#E30613]/30 grid place-items-center">
+              <span className="text-[#ff5a5a] font-black">SP</span>
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight">Swiss Prop Dashboard</h1>
+              <p className="text-sm text-zinc-400">Swiss Prop – Client Accounts</p>
+            </div>
+          </div>
 
-      <input
-        placeholder="Suche nach Name oder ID..."
-        className="w-full p-3 rounded-xl bg-black/20 border border-white/10 mb-4"
-        onChange={(e) => setQuery(e.target.value.toLowerCase())}
-      />
-
-      <div className="flex gap-2 mb-4">
-        {["all", "active", "paused", "inactive"].map((s) => (
           <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-4 py-2 rounded-xl border ${
-              statusFilter === s ? "bg-white/10" : "bg-white/5"
-            }`}
+            onClick={handleLogout}
+            className="rounded-xl px-4 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10"
           >
-            {s}
+            Logout
           </button>
-        ))}
+        </div>
       </div>
 
-      <select
-        onChange={(e) => setSortMode(e.target.value)}
-        className="p-3 rounded-xl bg-black/20 border border-white/10 mb-6"
-      >
-        <option value="balance_desc">Balance ↓</option>
-        <option value="balance_asc">Balance ↑</option>
-        <option value="date_desc">Start Date ↓</option>
-        <option value="date_asc">Start Date ↑</option>
-      </select>
+      <div className="mx-auto max-w-6xl px-6 py-6 space-y-6">
+        {/* KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard title="Accounts" value={kpis.total} subtitle="Gesamt im System" />
+          <KpiCard title="Active" value={kpis.active} subtitle="Aktive Accounts" />
+          <KpiCard title="Paused" value={kpis.paused} subtitle="Pausierte Accounts" />
+          <KpiCard title="Total Balance" value={formatMoney(kpis.sum, kpis.topCurrency)} subtitle={`Top Currency: ${kpis.topCurrency}`} />
+        </div>
 
-      <table className="w-full border border-white/10 rounded-xl overflow-hidden">
-        <thead className="bg-white/5">
-          <tr>
-            <th className="p-4">Name</th>
-            <th className="p-4">ID</th>
-            <th className="p-4">Balance</th>
-            <th className="p-4">Currency</th>
-            <th className="p-4">Status</th>
-            <th className="p-4">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((a) => (
-            <tr key={a.id} className="border-t border-white/5">
-              <td className="p-4 font-bold">{a.name}</td>
-              <td className="p-4 text-sm">{a.id}</td>
-              <td className="p-4 font-bold">{formatMoney(a.balance, a.currency)}</td>
-              <td className="p-4">{a.currency}</td>
-              <td className="p-4"><Badge status={a.status} /></td>
-              <td className="p-4">{a.date}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+        {/* Controls */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Suche nach Name oder ID…"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-4 py-3 outline-none focus:border-white/20"
+            />
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <div className="flex gap-2 flex-wrap">
+                <Chip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>all</Chip>
+                <Chip active={statusFilter === "active"} onClick={() => setStatusFilter("active")}>active</Chip>
+                <Chip active={statusFilter === "paused"} onClick={() => setStatusFilter("paused")}>paused</Chip>
+                <Chip active={statusFilter === "inactive"} onClick={() => setStatusFilter("inactive")}>inactive</Chip>
+              </div>
+
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value)}
+                className="rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-sm outline-none"
+              >
+                <option value="date_asc">Start Date ↑</option>
+                <option value="date_desc">Start Date ↓</option>
+                <option value="balance_desc">Balance ↓</option>
+                <option value="balance_asc">Balance ↑</option>
+              </select>
+
+              <div className="text-sm text-zinc-400 whitespace-nowrap">
+                {filtered.length} angezeigt
+              </div>
+            </div>
+          </div>
+
+          {err ? (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+              Fehler: {err}
+            </div>
+          ) : null}
+        </div>
+
+       <div className="overflow-x-auto">
+  <table className="w-full table-fixed">
+    <colgroup>
+      <col className="w-[25%]" />  {/* Name */}
+      <col className="w-[15%]" />  {/* ID */}
+      <col className="w-[18%]" />  {/* Balance */}
+      <col className="w-[12%]" />  {/* Currency */}
+      <col className="w-[15%]" />  {/* Status */}
+      <col className="w-[15%]" />  {/* Date */}
+    </colgroup>
+
+    <thead className="bg-white/5 border-b border-white/10">
+      <tr className="text-left text-sm font-semibold text-zinc-300">
+        <th className="px-5 py-4">Name</th>
+        <th className="px-5 py-4">ID</th>
+        <th className="px-5 py-4">Balance</th>
+        <th className="px-5 py-4">Currency</th>
+        <th className="px-5 py-4">Status</th>
+        <th className="px-5 py-4">Date</th>
+      </tr>
+    </thead>
+
+    <tbody className="divide-y divide-white/5">
+      {filtered.map((a) => (
+        <tr key={a.id} className="hover:bg-white/5">
+          <td className="px-5 py-4 font-semibold whitespace-nowrap">
+            {a.name}
+          </td>
+
+          <td className="px-5 py-4 text-sm text-zinc-300 whitespace-nowrap">
+            {a.id}
+          </td>
+
+          <td className="px-5 py-4 font-semibold whitespace-nowrap">
+            {formatMoney(a.balance, a.currency)}
+          </td>
+
+          <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
+            {a.currency}
+          </td>
+
+          <td className="px-5 py-4 whitespace-nowrap">
+            <Badge status={a.status} />
+          </td>
+
+          <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
+            {a.date}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+

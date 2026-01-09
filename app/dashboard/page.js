@@ -1,3 +1,21 @@
+useEffect(() => {
+  console.log("ENV NEXT_PUBLIC_API_URL =", process.env.NEXT_PUBLIC_API_URL);
+
+  const base =
+    process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
+      ? process.env.NEXT_PUBLIC_API_URL
+      : "https://backend-lyart-pi.vercel.app";
+
+  console.log("BASE =", base);
+
+  fetch(`${base}/accounts`)
+    .then((res) => {
+      if (!res.ok) throw new Error("API Fehler");
+      return res.json();
+    })
+    .then(setData)
+    .catch((err) => setError(err.message));
+}, []);
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,9 +26,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
   const base =
-  process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
-    ? process.env.NEXT_PUBLIC_API_URL
+  - process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
+-   ? process.env.NEXT_PUBLIC_API_URL
++ process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
++   ? process.env.NEXT_PUBLIC_API_URL
     : "https://backend-lyart-pi.vercel.app";
+
 
 
 

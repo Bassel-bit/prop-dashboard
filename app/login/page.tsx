@@ -1,50 +1,28 @@
 "use client";
 
-
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/dashboard";
+  const [mounted, setMounted] = useState(false);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-
-    // Dummy-Login: Cookie setzen
-    document.cookie = "token=1; path=/; max-age=86400";
-
-    // Weiterleitung
-    router.push(next);
+  if (!mounted) {
+    return <p>Lade Login...</p>;
   }
 
   return (
-    <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
-      <form onSubmit={handleLogin} style={{ display: "grid", gap: 12, width: 320 }}>
-        <h2 style={{ textAlign: "center" }}>Login</h2>
+    <div style={{ padding: 24 }}>
+      <h1>Login</h1>
 
-        <input
-          placeholder="E-Mail"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: 10 }}
-        />
-
-        <input
-          placeholder="Passwort"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: 10 }}
-        />
-
-        <button type="submit" style={{ padding: 10 }}>
-          Einloggen
-        </button>
+      <form>
+        <input placeholder="E-Mail" />
+        <br />
+        <input placeholder="Passwort" type="password" />
+        <br />
+        <button>Login</button>
       </form>
     </div>
   );

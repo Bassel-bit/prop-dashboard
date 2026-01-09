@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -11,8 +11,6 @@ export default function DashboardPage() {
       process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
         ? process.env.NEXT_PUBLIC_API_URL
         : "https://backend-lyart-pi.vercel.app";
-
-    console.log("API BASE:", base);
 
     fetch(`${base}/accounts`)
       .then((res) => {

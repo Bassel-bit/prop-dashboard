@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://backend-lyart-pi.vercel.app";
 
+// Helpers
 function safeLower(v) {
   return String(v || "").toLowerCase();
 }
@@ -31,7 +32,6 @@ function parseDateToTS(v) {
 function formatMoney(n, currency = "EUR") {
   const value = Number(n || 0);
   try {
-    // de-CH gives nice separators (25'000 etc.)
     return new Intl.NumberFormat("de-CH", {
       style: "currency",
       currency,
@@ -42,6 +42,7 @@ function formatMoney(n, currency = "EUR") {
   }
 }
 
+// UI Components
 function Badge({ status }) {
   const s = safeLower(status);
 
@@ -92,6 +93,7 @@ function Chip({ active, children, onClick }) {
   );
 }
 
+// Main Page
 export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,11 +128,7 @@ export default function DashboardPage() {
       const name = a.name ?? a.account_name ?? a.accountName ?? "Account";
       const status = safeLower(a.status ?? a.state ?? "inactive");
       const currency = String(a.currency ?? "EUR").toUpperCase();
-
-      // prefer starting_balance, fallback to balance
       const balance = parseNumber(a.starting_balance ?? a.startingBalance ?? a.balance ?? 0);
-
-      // support start_date in many formats
       const date = a.start_date ?? a.startDate ?? a.created_at ?? a.createdAt ?? "";
       const ts = parseDateToTS(date);
 
@@ -166,10 +164,8 @@ export default function DashboardPage() {
     const active = normalized.filter((a) => a.status === "active").length;
     const paused = normalized.filter((a) => a.status === "paused").length;
     const inactive = normalized.filter((a) => a.status === "inactive").length;
-
     const sum = normalized.reduce((s, a) => s + (a.balance || 0), 0);
 
-    // top currency
     const freq = {};
     normalized.forEach((a) => (freq[a.currency] = (freq[a.currency] || 0) + 1));
     const topCurrency = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || "EUR";
@@ -177,32 +173,15 @@ export default function DashboardPage() {
     return { total, active, paused, inactive, sum, topCurrency };
   }, [normalized]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    window.location.href = "/";
-  };
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Topbar */}
       <div className="border-b border-white/10 bg-zinc-950/70 backdrop-blur">
         <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#E30613]/20 border border-[#E30613]/30 grid place-items-center">
-              <span className="text-[#ff5a5a] font-black">SP</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight">Swiss Prop Dashboard</h1>
-              <p className="text-sm text-zinc-400">Swiss Prop – Client Accounts</p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">Swiss Prop Dashboard</h1>
+            <p className="text-sm text-zinc-400">Swiss Prop – Client Accounts</p>
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="rounded-xl px-4 py-2 text-sm font-semibold bg-white/5 hover:bg-white/10 border border-white/10"
-          >
-            Logout
-          </button>
         </div>
       </div>
 
@@ -212,7 +191,11 @@ export default function DashboardPage() {
           <KpiCard title="Accounts" value={kpis.total} subtitle="Gesamt im System" />
           <KpiCard title="Active" value={kpis.active} subtitle="Aktive Accounts" />
           <KpiCard title="Paused" value={kpis.paused} subtitle="Pausierte Accounts" />
-          <KpiCard title="Total Balance" value={formatMoney(kpis.sum, kpis.topCurrency)} subtitle={`Top Currency: ${kpis.topCurrency}`} />
+          <KpiCard
+            title="Total Balance"
+            value={formatMoney(kpis.sum, kpis.topCurrency)}
+            subtitle={`Top Currency: ${kpis.topCurrency}`}
+          />
         </div>
 
         {/* Controls */}
@@ -257,57 +240,66 @@ export default function DashboardPage() {
           ) : null}
         </div>
 
-       <div className="overflow-x-auto">
-  <table className="w-full table-fixed">
-    <colgroup>
-      <col className="w-[25%]" />  {/* Name */}
-      <col className="w-[15%]" />  {/* ID */}
-      <col className="w-[18%]" />  {/* Balance */}
-      <col className="w-[12%]" />  {/* Currency */}
-      <col className="w-[15%]" />  {/* Status */}
-      <col className="w-[15%]" />  {/* Date */}
-    </colgroup>
+        {/* Table */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+          {loading ? (
+            <div className="p-6 text-zinc-300">Lade Accounts…</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed">
+                <colgroup>
+                  <col className="w-[25%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[15%]" />
+                </colgroup>
 
-    <thead className="bg-white/5 border-b border-white/10">
-      <tr className="text-left text-sm font-semibold text-zinc-300">
-        <th className="px-5 py-4">Name</th>
-        <th className="px-5 py-4">ID</th>
-        <th className="px-5 py-4">Balance</th>
-        <th className="px-5 py-4">Currency</th>
-        <th className="px-5 py-4">Status</th>
-        <th className="px-5 py-4">Date</th>
-      </tr>
-    </thead>
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr className="text-left text-sm font-semibold text-zinc-300">
+                    <th className="px-5 py-4">Name</th>
+                    <th className="px-5 py-4">ID</th>
+                    <th className="px-5 py-4">Balance</th>
+                    <th className="px-5 py-4">Currency</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Date</th>
+                  </tr>
+                </thead>
 
-    <tbody className="divide-y divide-white/5">
-      {filtered.map((a) => (
-        <tr key={a.id} className="hover:bg-white/5">
-          <td className="px-5 py-4 font-semibold whitespace-nowrap">
-            {a.name}
-          </td>
+                <tbody className="divide-y divide-white/5">
+                  {filtered.map((a) => (
+                    <tr key={a.id || a.name} className="hover:bg-white/5 transition">
+                      <td className="px-5 py-4 font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
+                        {a.name}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-zinc-300 whitespace-nowrap overflow-hidden text-ellipsis">
+                        {a.id || "—"}
+                      </td>
+                      <td className="px-5 py-4 font-semibold whitespace-nowrap">
+                        {formatMoney(a.balance, a.currency)}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
+                        {a.currency}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <Badge status={a.status} />
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
+                        {a.date || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-          <td className="px-5 py-4 text-sm text-zinc-300 whitespace-nowrap">
-            {a.id}
-          </td>
-
-          <td className="px-5 py-4 font-semibold whitespace-nowrap">
-            {formatMoney(a.balance, a.currency)}
-          </td>
-
-          <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
-            {a.currency}
-          </td>
-
-          <td className="px-5 py-4 whitespace-nowrap">
-            <Badge status={a.status} />
-          </td>
-
-          <td className="px-5 py-4 font-semibold text-zinc-300 whitespace-nowrap">
-            {a.date}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
-
+        <div className="text-xs text-zinc-500">
+          © Swiss Prop 2026 — Professional Trading Solutions
+        </div>
+      </div>
+    </div>
+  );
+}

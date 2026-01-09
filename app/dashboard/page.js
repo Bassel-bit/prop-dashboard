@@ -24,10 +24,10 @@ function formatDate(iso) {
 function StatusPill({ status }) {
   const s = String(status || "").toLowerCase();
 
-  // Wunsch: "active" schön rot
+  // Active = GRÜN (wie gewünscht)
   const cfg =
     s === "active"
-      ? { bg: "#FFE8EA", fg: "#C1121F", label: "Active" } // rot
+      ? { bg: "#E8F7EE", fg: "#1E7F43", label: "Active" } // grün
       : s === "inactive"
       ? { bg: "#EEE", fg: "#333", label: "Inactive" }
       : s === "paused"
@@ -45,7 +45,7 @@ function StatusPill({ status }) {
         background: cfg.bg,
         color: cfg.fg,
         fontSize: 12,
-        fontWeight: 800,
+        fontWeight: 900,
         whiteSpace: "nowrap",
       }}
     >
@@ -67,7 +67,7 @@ function StatCard({ title, value, sub }) {
   return (
     <div
       style={{
-        background: "#FFFFFF",
+        background: "#FFFFFF", // Ergebnisse weiß
         border: "1px solid #eee",
         borderRadius: 16,
         padding: 16,
@@ -177,10 +177,10 @@ export default function DashboardPage() {
         >
           <div>
             <h1 style={{ margin: 0, fontSize: 30, letterSpacing: -0.5, color: "#fff" }}>
-              Prop Firm Dashboard
+              Swiss Prop Dashboard
             </h1>
             <div style={{ color: "#BDBDBD", marginTop: 6, fontSize: 14 }}>
-              Accounts aus deinem Backend
+              Swiss Prop – Client Accounts
             </div>
           </div>
 
